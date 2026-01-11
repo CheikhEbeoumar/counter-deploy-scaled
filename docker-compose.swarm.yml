@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  api:
+    image: cheikhebe/flask-counter:latest   
+    ports:
+      - "5000:5000"  # Published port for accessing the API and load testing
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    deploy:
+      replicas: 4  # REQUIRED: 4 Flask instances
+      update_config:
+        parallelism: 2
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL","curl -f http://localhost:5000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - counter-net
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    deploy:
+      replicas: 1  
+      placement:
+        constraints:
+          - node.role == manager
+    volumes:
+      - redis-data:/data
+    networks:
+      - counter-net
+    healthcheck:
+      test: ["CMD","redis-cli","ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  redis-data:
+
+networks:
+  counter-net:
+    external: true
